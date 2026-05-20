@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Souvenir 🇯🇵" />
+  <title>Registro Souvenir Giappone</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;600&family=Shippori+Mincho:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+    body { background: #0d0d0d; font-family: 'Noto Serif JP', Georgia, serif; color: #f0ebe0; }
+    input { background: #1e1e1e; border: 1px solid #333; color: #f0ebe0; padding: 12px 14px; border-radius: 10px; font-family: inherit; font-size: 16px; width: 100%; }
+    input:focus { outline: none; border-color: #c9a84c; }
+    button { cursor: pointer; font-family: inherit; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+    .fade-in { animation: fadeIn 0.4s ease forwards; }
+    .slide-up { animation: slideUp 0.3s ease forwards; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const EXCHANGE_RATE = 92307 / 500;
+    const BUDGET_YEN = 92307;
+    const STORAGE_KEY = "souvenir-giappone-items";
+
+    const DEFAULT_ITEMS = [
+      { id: 1, descrizione: "Libro timbri templi", yen: 2000 },
+      { id: 2, descrizione: "Bicchiere shottino sauna", yen: 380 },
+      { id: 3, descrizione: "Maglietta smanicata", yen: 590 },
+      { id: 4, descrizione: "Timbro Asakusa", yen: 1000 },
+      { id: 5, descrizione: "Shuriken", yen: 2200 },
+      { id: 6, descrizione: "Timbro Kanazawa", yen: 500 },
+    ];
+
+    function toEur(yen) { return (yen / EXCHANGE_RATE).toFixed(2); }
+    function fmtEur(n) { return "€ " + parseFloat(n).toFixed(2).replace(".", ","); }
+
+    function StatCard({ label, yen, eur, color }) {
+      const yenVal = typeof yen === "number" ? yen : Number(yen);
+      const isNeg = yenVal < 0;
+      return (
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "9px", letterSpacing: "1px", color: "#444", textTransform: "uppercase", marginBottom: "5px" }}>{label}</div>
+          <div style={{ fontSize: "15px", fontWeight: 700, color, fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>
+            {isNeg ? "-" : ""}{Math.abs(yenVal).toLocaleString("it-IT")}¥
+          </div>
+          <div style={{ fontSize: "10px", color: "#555", marginTop: "2px" }}>
+            {fmtEur(typeof eur === "number" ? eur : parseFloat(eur))}
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [items, setItems] = useState(null);
+      const [newDesc, setNewDesc] = useState("");
+      const [newYen, setNewYen] = useState("");
+      const [editingId, setEditingId] = useState(null);
+      const [editDesc, setEditDesc] = useState("");
+      const [editYen, setEditYen] = useState("");
+      const [saved, setSaved] = useState(false);
+      const [showAdd, setShowAdd] = useState(false);
+
+      useEffect(() => {
+        try {
+          const stored = localStorage.getItem(STORAGE_KEY);
+          setItems(stored ? JSON.parse(stored) : DEFAULT_ITEMS);
+        } catch { setItems(DEFAULT_ITEMS); }
+      }, []);
+
+      useEffect(() => {
+        if (items === null) return;
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+          setSaved(true);
+          setTimeout(() => setSaved(false), 1500);
+        } catch(e) { console.error(e); }
+      }, [items]);
+
+      if (items === null) return (
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#c9a84c", fontSize: "18px", letterSpacing: "4px" }}>
+          読み込み中…
+        </div>
+      );
+
+      const totaleYen = items.reduce((s, i) => s + Number(i.yen), 0);
+      const totaleEur = toEur(totaleYen);
+      const rimanYen = BUDGET_YEN - totaleYen;
+      const rimanEur = toEur(rimanYen);
+      const percSpeso = Math.min((totaleYen / BUDGET_YEN) * 100, 100);
+      const barColor = percSpeso > 85 ? "#e05c5c" : percSpeso > 60 ? "#e0a84b" : "#7bb87f";
+
+      function addItem() {
+        if (!newDesc.trim() || !newYen) return;
+        setItems([...items, { id: Date.now(), descrizione: newDesc.trim(), yen: Number(newYen) }]);
+        setNewDesc(""); setNewYen(""); setShowAdd(false);
+      }
+
+      function removeItem(id) {
+        setItems(items.filter(i => i.id !== id));
+        if (editingId === id) setEditingId(null);
+      }
+
+      function startEdit(item) {
+        setEditingId(item.id); setEditDesc(item.descrizione); setEditYen(String(item.yen));
+      }
+
+      function saveEdit(id) {
+        if (!editDesc.trim() || !editYen) return;
+        setItems(items.map(i => i.id === id ? { ...i, descrizione: editDesc.trim(), yen: Number(editYen) } : i));
+        setEditingId(null);
+      }
+
+      return (
+        <div style={{ minHeight: "100vh", paddingBottom: "60px" }}>
+          {/* HEADER */}
+          <div style={{
+            background: "linear-gradient(180deg, #1a0a00 0%, #0d0d0d 100%)",
+            borderBottom: "1px solid #2a1f0a",
+            padding: "56px 20px 28px",
+            textAlign: "center", position: "relative", overflow: "hidden",
+          }}>
+            <div style={{
+              position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "160px", color: "rgba(201,168,76,0.04)", pointerEvents: "none",
+            }}>旅</div>
+            {saved && (
+              <div style={{
+                position: "absolute", top: "52px", right: "14px",
+                background: "#1a2a1a", border: "1px solid #3a5a3a",
+                borderRadius: "20px", padding: "4px 12px",
+                fontSize: "11px", color: "#7bb87f", letterSpacing: "1px",
+              }}>✓ Salvato</div>
+            )}
+            <div style={{ fontSize: "10px", letterSpacing: "6px", color: "#c9a84c", textTransform: "uppercase", marginBottom: "10px" }}>
+              日本旅行 · Viaggio in Giappone
+            </div>
+            <h1 style={{ fontFamily: "'Shippori Mincho', serif", fontSize: "26px", fontWeight: 700, color: "#f0ebe0", margin: "0 0 6px", letterSpacing: "2px" }}>
+              Registro Souvenir
+            </h1>
+            <div style={{ fontSize: "11px", color: "#555", letterSpacing: "2px" }}>お土産・記録帳</div>
+          </div>
+
+          <div style={{ maxWidth: "520px", margin: "0 auto", padding: "20px 16px" }}>
+
+            {/* BUDGET CARD */}
+            <div style={{ background: "#141414", border: "1px solid #222", borderRadius: "16px", padding: "20px 16px", marginBottom: "16px" }} className="fade-in">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "16px" }}>
+                <StatCard label="Budget" yen={BUDGET_YEN} eur={500} color="#c9a84c" />
+                <StatCard label="Speso" yen={totaleYen} eur={totaleEur} color="#e07a5f" />
+                <StatCard label="Rimasto" yen={rimanYen} eur={rimanEur} color={rimanYen >= 0 ? "#7bb87f" : "#e05c5c"} />
+              </div>
+              <div style={{ background: "#1f1f1f", borderRadius: "100px", height: "5px", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${percSpeso}%`, background: barColor, borderRadius: "100px", transition: "width 0.6s ease" }} />
+              </div>
+              <div style={{ textAlign: "center", marginTop: "6px", fontSize: "10px", color: "#444", letterSpacing: "1px" }}>
+                {percSpeso.toFixed(1)}% del budget utilizzato
+              </div>
+            </div>
+
+            {/* LISTA */}
+            <div style={{ background: "#141414", border: "1px solid #222", borderRadius: "16px", overflow: "hidden", marginBottom: "16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 72px 24px", padding: "10px 14px", borderBottom: "1px solid #1e1e1e", fontSize: "9px", letterSpacing: "2px", color: "#444", textTransform: "uppercase" }}>
+                <span>Voce</span><span style={{ textAlign: "right" }}>Yen ¥</span><span style={{ textAlign: "right" }}>Euro €</span><span />
+              </div>
+
+              {items.length === 0 && (
+                <div style={{ padding: "32px", textAlign: "center", color: "#444", fontSize: "13px" }}>Nessuna spesa ancora.<br /><span style={{ fontSize: "22px" }}>🛍️</span></div>
+              )}
+
+              {items.map((item, idx) => (
+                <div key={item.id} style={{ borderBottom: idx < items.length - 1 ? "1px solid #1a1a1a" : "none", animation: `fadeIn 0.25s ease ${Math.min(idx,8)*0.04}s both` }}>
+                  {editingId === item.id ? (
+                    <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "10px", background: "#1a1a14" }}>
+                      <input value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="Descrizione" autoFocus />
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <input value={editYen} onChange={e => setEditYen(e.target.value)} type="number" placeholder="Importo ¥" style={{ flex: 1 }} />
+                        <span style={{ fontSize: "12px", color: "#666", whiteSpace: "nowrap" }}>≈ {fmtEur(toEur(Number(editYen)||0))}</span>
+                      </div>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button onClick={() => saveEdit(item.id)} style={{ flex: 1, background: "#c9a84c", color: "#0d0d0d", border: "none", borderRadius: "10px", padding: "12px", fontSize: "14px", fontWeight: 700 }}>✓ Salva</button>
+                        <button onClick={() => setEditingId(null)} style={{ flex: 1, background: "none", border: "1px solid #333", color: "#888", borderRadius: "10px", padding: "12px", fontSize: "14px" }}>Annulla</button>
+                        <button onClick={() => removeItem(item.id)} style={{ background: "none", border: "1px solid #3a1a1a", color: "#c05050", borderRadius: "10px", padding: "12px 14px", fontSize: "16px" }}>🗑</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div onClick={() => startEdit(item)} style={{ display: "grid", gridTemplateColumns: "1fr 80px 72px 24px", padding: "13px 14px", alignItems: "center" }}>
+                      <span style={{ fontSize: "14px", color: "#d4cfc4", paddingRight: "6px" }}>{item.descrizione}</span>
+                      <span style={{ textAlign: "right", fontSize: "13px", color: "#f0ebe0", fontVariantNumeric: "tabular-nums" }}>{Number(item.yen).toLocaleString("it-IT")}¥</span>
+                      <span style={{ textAlign: "right", fontSize: "12px", color: "#666", fontVariantNumeric: "tabular-nums" }}>{fmtEur(toEur(item.yen))}</span>
+                      <span style={{ textAlign: "right", fontSize: "14px", color: "#333" }}>›</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* TOTALE */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 72px 24px", padding: "13px 14px", borderTop: "1px solid #252510", background: "#0f0f0a" }}>
+                <span style={{ fontSize: "10px", letterSpacing: "2px", color: "#c9a84c", textTransform: "uppercase", alignSelf: "center" }}>Totale</span>
+                <span style={{ textAlign: "right", fontSize: "14px", fontWeight: 700, color: "#c9a84c", fontVariantNumeric: "tabular-nums" }}>{totaleYen.toLocaleString("it-IT")}¥</span>
+                <span style={{ textAlign: "right", fontSize: "13px", color: "#a08840", fontVariantNumeric: "tabular-nums" }}>{fmtEur(totaleEur)}</span>
+                <span />
+              </div>
+            </div>
+
+            {/* AGGIUNGI */}
+            {showAdd ? (
+              <div style={{ background: "#141414", border: "1px solid #2a2a14", borderRadius: "16px", padding: "18px 16px" }} className="slide-up">
+                <div style={{ fontSize: "10px", letterSpacing: "3px", color: "#c9a84c", textTransform: "uppercase", marginBottom: "14px" }}>Nuova spesa</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <input placeholder="Descrizione souvenir..." value={newDesc} onChange={e => setNewDesc(e.target.value)} autoFocus />
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <input placeholder="Importo in ¥" value={newYen} onChange={e => setNewYen(e.target.value)} type="number" style={{ flex: 1 }} />
+                    {newYen ? <span style={{ fontSize: "12px", color: "#666", whiteSpace: "nowrap" }}>≈ {fmtEur(toEur(Number(newYen)))}</span> : null}
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                    <button onClick={addItem} style={{ flex: 2, background: "#c9a84c", color: "#0d0d0d", border: "none", borderRadius: "12px", padding: "14px", fontSize: "15px", fontWeight: 700 }}>+ Aggiungi</button>
+                    <button onClick={() => { setShowAdd(false); setNewDesc(""); setNewYen(""); }} style={{ flex: 1, background: "none", border: "1px solid #333", color: "#888", borderRadius: "12px", padding: "14px", fontSize: "14px" }}>Annulla</button>
+                  </div>
+                </div>
+                <div style={{ fontSize: "10px", color: "#333", marginTop: "12px", textAlign: "center" }}>1 € = {EXCHANGE_RATE.toFixed(2)} ¥</div>
+              </div>
+            ) : (
+              <button onClick={() => setShowAdd(true)} style={{ width: "100%", background: "#1a1a0f", border: "1px dashed #3a3a20", color: "#c9a84c", borderRadius: "16px", padding: "16px", fontSize: "15px", letterSpacing: "1px", fontWeight: 600 }}>
+                + Aggiungi spesa
+              </button>
+            )}
+
+            <div style={{ textAlign: "center", marginTop: "40px", fontSize: "11px", color: "#2a2a2a", letterSpacing: "4px" }}>いい旅を · Buon viaggio</div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
